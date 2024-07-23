@@ -1,0 +1,4 @@
+plots/
+data/
+.lintr
+.snakemake/
