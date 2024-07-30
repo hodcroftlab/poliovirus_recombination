@@ -512,17 +512,26 @@ rule plot_gaps_mutations_pre_masking:
 
 # Choose which alignment to move forward with
 
+# Reorder sequence names in the alignment: move accession number to the back of the name, to make the sequences sortable by serotype in the alignment viewer
+rule reorder_sequence_names:
+    input:
+        alignment = rules.nextalign_coding_region.output.aligned_fasta
+    output:
+        alignment_reordered_names = "data/sequences/alignments/coding_region/nextalign/nextalign_coding_region_reordered_names.fasta"
+    run:
+        shell("python scripts/reorder_sequence_names.py --input {input.alignment} --output {output.alignment_reordered_names}")
+
 # At this point, probably want to mask regions that seem to be badly aligned (gappy, ambigously aligned regions)
 
-# Try alignment mkasing using MaskAlignment function implemented in DECIPHER R function to remove badly aligned regions
+# Mask coding region alignment using MaskAlignment function implemented in DECIPHER R function to remove badly aligned regions
 rule mask_alignment:
     input:
         alignment = rules.nextalign_coding_region.output.aligned_fasta
     output:
-        masked_alignment = "data/sequences/alignments/coding_region/nextalign/nextalign_coding_region_masked.fasta",
-        plot = "plots/nextalign_coding_region_masking.pdf"
+        masked_alignment = "data/sequences/alignments/coding_region/nextalign/nextalign_coding_region_masked_ws15.fasta",
+        plot = "plots/nextalign_coding_region_masking_ws15.pdf"
     params:
-        window_size = 7,
+        window_size = 15,
         threshold = 1,
         max_fraction_gaps = 0.4
     run:
@@ -630,7 +639,7 @@ def get_alignments(wildcards):
         rules.mafft_noncoding_regions.output.three_prime_aligned
     ]
 
-# Filter UTRs and coding regions for sequences that contain more than X% gaps
+# Filter UTRs and coding regions for sequences that contain more than max_gap_fraction gaps
 rule filter_gappy_seqs:
     input:
         alignments = get_alignments
@@ -649,19 +658,18 @@ rule filter_gappy_seqs:
         five_prime_utr = "data/sequences/alignments/filtered/5UTR_filtered.fasta",
         three_prime_utr = "data/sequences/alignments/filtered/3UTR_filtered.fasta"
     params:
-        max_gap_fraction = 0.5
+        max_gap_fraction_gene = 0.1,
+        max_gap_fraction_utr = 0.5   # Allow more gaps in the UTRs, as they seem more variable (e.g., variable sequencing starts and ends in the 5'UTR and 3'UTR)
     run:
-        shell("python scripts/remove_gappy_seqs_from_alignments.py --alignments {input.alignments} --max_gap_fraction {params.max_gap_fraction} --output_dir data/sequences/alignments/filtered")
+        shell("python scripts/remove_gappy_seqs_from_alignments.py --alignments {input.alignments} --max_gap_fraction_gene {params.max_gap_fraction_gene} --max_gap_fraction_utr {params.max_gap_fraction_utr} --output_dir data/sequences/alignments/filtered")
 
-# rule calculate_pdistances:
-#     input:
-#         alignment_vp1 = rules.split_coding_region_by_gene.output.protein_vp1,
-#         alignment_3dpol = rules.split_coding_region_by_gene.output.protein_3d,
-#         alignment_5utr = rules.filter_five_prime_seqs.output.filtered_alignment
-#     output:
-#         pdistances_csv = "data/pdistances/pdistances.csv"
-#     run:
-#         shell("python scripts/calculate_pdistances.py")
+rule calculate_pdistances:
+    input:
+        alignments = rules.filter_gappy_seqs.output
+    output:
+        pdistances_csv = "data/pdistances/pdistances.csv"
+    run:
+        shell("python scripts/calculate_pdistances.py --alignments {input.alignments} --output {output.pdistances_csv}")
 
 
 

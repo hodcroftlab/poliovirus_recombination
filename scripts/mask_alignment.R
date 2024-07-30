@@ -28,7 +28,7 @@ masked_alignment <- DECIPHER::MaskAlignment(
 cat("Number of masked columns:", width(alignment[1]) - width(as(masked_alignment, "DNAStringSet")[1]), "\n")
 
 # Display the complete DNA sequence set including the mask
-masks <- lapply(width(colmask(masked_alignment)), rep, x="N")
+masks <- lapply(width(colmask(masked_alignment)), rep, x="+")
 masks <- unlist(lapply(masks, paste, collapse=""))
 masked_alignment <- replaceAt(alignment, at=IRanges(colmask(masked_alignment)), value=masks)
 
