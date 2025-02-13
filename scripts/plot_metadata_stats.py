@@ -4,130 +4,164 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import argparse
+import numpy as np
+import os
 
 if __name__ == "__main__":
     
     # Parse arguments
-    argparser = argparse.ArgumentParser(description="Plot statistics of the sequencing data.")
-    argparser.add_argument("--metadata_polio", help="Metadata file for polio sequences in csv format.")
-    argparser.add_argument("--metadata_npevc", help="Metadata file for non-polio EVC sequences in csv format.")
-    argparser.add_argument("--output_dir", help="Output directory for the plots.")
+    argparser = argparse.ArgumentParser(description="Plot number of sequences per serotype.")
+    argparser.add_argument("--metadata", help="Metadata file (CSV/TSV).")
+    argparser.add_argument("--colors", help="CSV/TSV file containing mapping between serotypes and colors.")
+    argparser.add_argument("--outdir", help="Output directory for the plot.")
     
     args = argparser.parse_args()
     
+    # Check if output directory exists, if not, create it
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
+    
     # Set plotting parameters
-    plt.rcParams.update({"font.size": 12})
-    plt.rcParams.update({"axes.labelsize": 14})
-    plt.rcParams.update({"xtick.labelsize": 12})
-    plt.rcParams.update({"ytick.labelsize": 12})
-    plt.rcParams.update({"legend.fontsize": 12})
+    plt.rcParams.update({"font.size": 14})
+    plt.rcParams.update({"axes.labelsize": 16})
+    plt.rcParams.update({"xtick.labelsize": 14})
+    plt.rcParams.update({"ytick.labelsize": 14})
+    plt.rcParams.update({"legend.fontsize": 14})
     plt.rcParams["font.family"] = "Arial"
     
     # Read metadata
-    metadata_polio = pd.read_csv(args.metadata_polio)
-    metadata_npevc = pd.read_csv(args.metadata_npevc)
+    if args.metadata.endswith(".csv"):
+        metadata = pd.read_csv(args.metadata)
+    elif args.metadata.endswith(".tsv"):
+        metadata = pd.read_csv(args.metadata, sep="\t")
+    else:
+        raise ValueError("Metadata file must be in CSV or TSV format.")
+
+
+    ## Plot pie chart and bar chart of the number of sequences for each serotype
     
-    metadata_polio = pd.read_csv("../data/metadata/polio_metadata.csv")
-    metadata_npevc = pd.read_csv("../data/metadata/npevc_metadata.csv")
+    # Count sequences per serotype
+    df_serotypes = metadata.groupby("serotype_short").size().reset_index(name="count")
+    df_serotypes.rename(columns={"serotype_short": "serotype"}, inplace=True)
     
-    ## Merge metadata to plot bar chart of the number of sequences per serotype, stacked by full genome and partial sequences
-    metadata = pd.concat([metadata_polio, metadata_npevc])
-    
-    # Edit Nuc_Completeness column by assigning "full" to all sequences longer than 6000 bp and "partial" to all others
-    metadata["Nuc_Completeness"] = ["full" if x >= 6000 else "partial" for x in metadata["Length"]]
-    
-    df_serotypes = metadata.groupby(["serotype", "Nuc_Completeness"]).size().reset_index(name="count") # Count sequences per serotype and completeness
-    
-    # Replace "Enterovirus " by "EV-", "Coxsackievirus " by "CV-", and Poliovirus " by "PV-" in serotype names
-    df_serotypes["serotype"] = df_serotypes["serotype"].str.replace("Enterovirus ", "EV-", regex=False)
-    df_serotypes["serotype"] = df_serotypes["serotype"].str.replace("Coxsackievirus ", "CV-", regex=False)
-    df_serotypes["serotype"] = df_serotypes["serotype"].str.replace("Poliovirus ", "PV-", regex=False)
-    df_serotypes["serotype"] = df_serotypes["serotype"].str.replace("Poliovirus", "PV", regex=False)
-    df_serotypes["serotype"] = df_serotypes["serotype"].str.replace("Pv", "PV", regex=False)
-    
-    # Pivot table to have "full" and "partial" as columns
-    df_serotypes = df_serotypes.pivot(index="serotype", columns="Nuc_Completeness", values="count").reset_index().fillna(0)
-    
-    # Make stacked barplot ordered by total number of sequences
-    df_serotypes["total"] = df_serotypes["full"] + df_serotypes["partial"]
-    
-    # Group serotypes with less than 10 total sequences as "Other"
-    df_serotypes.loc[df_serotypes["total"] < 10, "serotype"] = "Other"
+    # Group serotypes with less than 10 sequences as "Other"
+    df_serotypes.loc[df_serotypes["count"] < 10, "serotype"] = "Other"
     df_serotypes = df_serotypes.groupby("serotype").sum().reset_index()
     
     # Sort by total number of sequences, but keep "Other" at the end
-    df_serotypes = df_serotypes.sort_values(by="total", ascending=False)
+    df_serotypes = df_serotypes.sort_values(by="count", ascending=False)
     df_serotypes = pd.concat([df_serotypes[df_serotypes["serotype"] != "Other"], df_serotypes[df_serotypes["serotype"] == "Other"]]) # Append "Other" at the end using pd.concat
     
-    df_serotypes = df_serotypes.drop(columns="total") # Drop "total" column
+    # Get color mapping for serotypes
+    if args.colors.endswith(".tsv"):
+        colors = pd.read_csv(args.colors, sep="\t", names=["class", "serotype", "color"])
+    elif args.colors.endswith(".csv"):
+        colors = pd.read_csv(args.colors, names=["class", "serotype", "color"])
+    else:
+        raise ValueError("Color file must be in CSV or TSV format.")
     
-    # Make stacked barplot of full and partial sequences per serotype
-    df_serotypes.plot(x="serotype", kind="bar", stacked=True, figsize=(12, 6), width=0.9, color=["#006BA4", "#FF800E"]) 
+    colors["serotype"] = colors["serotype"].str.replace("Enterovirus C", "EVC")
+    colors["serotype"] = colors["serotype"].str.replace("Coxsackievirus A", "CVA")
+    colors["serotype"] = colors["serotype"].str.replace("Poliovirus ", "PV")
+    
+    # Add color for "Other" serotype
+    colors = pd.concat([colors, pd.DataFrame({"class": ["serotype"], "serotype": ["Other"], "color": ["#808080"]})], ignore_index=True)
+    
+    # Merge colors with serotype counts
+    df_serotypes = df_serotypes.merge(colors, on="serotype", how="left")
+    
+    # Make pie chart showing counts of full genomes per serotype (not percentage)
+    # Custom autopct function to reduce the font size of counts
+    def custom_autopct(pct):
+        total = values.sum()
+        val = int(pct * total / 100)
+        return '{:.0f}'.format(val)
+    
+    values = df_serotypes["count"]
+    plt.figure(figsize=(6, 6))
+    wedges, texts, autotexts = plt.pie(
+        df_serotypes["count"], 
+        labels=df_serotypes["serotype"], 
+        startangle=0, 
+        autopct=custom_autopct,  # Use custom function for counts
+        colors=df_serotypes["color"],  # Use custom colors
+        pctdistance=0.8,  # Adjust distance of counts
+        textprops={"fontsize": 11},  # Set font size for labels
+    )
+
+    # Change the font size of the autotexts (counts)
+    for autotext in autotexts:
+        autotext.set_fontsize(8)  # Set the font size for counts
+    
+    plt.title("Nr. of Full Genome Sequences")
+    
+    # Save plot as .png
+    plt.tight_layout()
+    plt.savefig(f"{args.outdir}/piechart_serotypes_full_genomes.png", dpi=300)
+    
+    # Now a bar chart showing the same data
+    df_serotypes.plot(x="serotype", y="count", kind="bar", width=0.9, color=df_serotypes["color"], legend=False, figsize=(8, 6))
     plt.xlabel("Serotype")
     plt.ylabel("Number of Sequences")
-    plt.title("Number of Full and Partial Sequences per Serotype")
-    plt.legend(title="Genome Status", labels=["Full (>= 6000 bp)", "Partial (< 6000 bp)"], loc="upper right") # Adjust legend
+    plt.title("Number of Full Genome Sequences per Serotype")
+    
+    # Extend y-axis by 10% to make space for text labels
+    plt.ylim(0, df_serotypes["count"].max() * 1.1)
     
     # Add total number of sequences as text on top of the bars
     for i in range(len(df_serotypes)):
-        plt.text(x=i, y=df_serotypes.iloc[i]["full"] + df_serotypes.iloc[i]["partial"]+15, s=int(df_serotypes.iloc[i]["full"] + df_serotypes.iloc[i]["partial"]), ha="center")
-    
+        plt.text(x=i, y=df_serotypes.iloc[i]["count"]+15, s=int(df_serotypes.iloc[i]["count"]), ha="center")
+        
     # Save plot as .png
     plt.tight_layout()
-    plt.savefig(f"{args.output_dir}/sequences_per_serotype.png", dpi=300)
+    plt.savefig(f"{args.outdir}/barchart_serotypes_full_genomes.png", dpi=300)
     
     
-    ## Plot number of sequences per year as stacked histogram colored by continent, in separate subfigures for polio and non-polio EV-C
+    # Now a single, horizontal stacked bar of the same data
+    # Labels with serotype and count within the bars
     
-    # Add release year column
-    metadata_polio["release_year"] = pd.to_datetime(metadata_polio["Release_Date"]).dt.year
-    metadata_npevc["release_year"] = pd.to_datetime(metadata_npevc["Release_Date"]).dt.year
-    
-    # Convert NA values to "Unknown" for continent
-    metadata_polio["continent"] = metadata_polio["continent"].fillna("Unknown")
-    metadata_npevc["continent"] = metadata_npevc["continent"].fillna("Unknown")
-    
-    # Keep only sequences starting in 2000
-    metadata_polio = metadata_polio[metadata_polio["release_year"] >= 2000]
-    metadata_npevc = metadata_npevc[metadata_npevc["release_year"] >= 2000]
+    # Example serotype data (replace with your df_serotypes data)
+    serotypes = df_serotypes["serotype"]
+    values = df_serotypes["count"]
 
-    # Plot number of sequences per year as stacked barplot colored by continent
-    fig, axs = plt.subplots(2, 1, figsize=(12, 12))
-    fig.suptitle("Number of Sequences by Release Year and Continent", fontsize=16)
-    
-    df_polio = metadata_polio.groupby(["release_year", "continent"]).size().reset_index(name="count")
-    df_npevc = metadata_npevc.groupby(["release_year", "continent"]).size().reset_index(name="count")
-    
-    # Pivot tables to have continents as columns
-    df_polio = df_polio.pivot(index="release_year", columns="continent", values="count").reset_index().fillna(0)
-    df_npevc = df_npevc.pivot(index="release_year", columns="continent", values="count").reset_index().fillna(0)
+    # Create figure and axis
+    fig, ax = plt.subplots(figsize=(8, 4))
 
-    # Make stacked barplots    
-    df_polio.plot(x="release_year", kind="bar", stacked=True, ax=axs[0], color=["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#999999"], width=0.9)
-    df_npevc.plot(x="release_year", kind="bar", stacked=True, ax=axs[1], color=["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#999999"], width=0.9)
+    # Initialize the starting position of the left edge of the bars
+    left = 0
+    others = 0
+
+    # Loop through each serotype and value to create a stacked bar chart
+    for i, (serotype, value) in enumerate(zip(serotypes, values)):
+        # Plot each section of the stacked bar
+        color = df_serotypes[df_serotypes["serotype"] == serotype]["color"].values[0]
+        ax.barh(0, value, left=left, color=color, edgecolor="white")
+        
+        # If the value is small, sum the remaining values and plot them as "Other" below the stacked bar
+        if value < 200 and "PV" not in serotype:
+            others += value
+        else:
+            # Add text labels in the middle of each section
+            ax.text(left + value / 2, 0, f"{serotype}\n{value}", va="center", ha="center", fontsize=24, color="black")
+        
+        # Update the left position for the next bar
+        left += value
+
+    # Remove axes (only show the stacked bar)
+    ax.set_axis_off()
     
-    # Add labels, titles, and legends
-    # Remove x-axis label for the first subplot
-    axs[0].set_xlabel("")
-    axs[0].set_ylabel("Number of Sequences")
-    axs[0].set_title("Poliovirus", x=0.01, y=0.92, horizontalalignment="left")
-    axs[0].get_legend().remove() # Remove legend for the first subplot
-    axs[0].set_ylim(0, 1200) # Manually set y-axis limits to make plots comparable
+    # Plot total number of sequences above the stacked bar
+    total = values.sum()
+    ax.text(0, 0.5, f"Total Sequences: {total}", va="center", ha="left", fontsize=28, color="black")
+    #ax.text(0, -0.5, f"Total Sequences: {total}", va="center", ha="left", fontsize=28, color="black")
     
-    axs[1].set_xlabel("Release Year")
-    axs[1].set_ylabel("Number of Sequences")
-    axs[1].set_title("Non-Polio Enterovirus C", x=0.01, y=0.92, horizontalalignment="left")
-    axs[1].legend(title="Continent", loc="center left")
-    axs[1].set_ylim(0, 1200) # Manually set y-axis limits to make plots comparable
-    
+    # Add "others" label below the stacked bar aligned to the right
+    ax.text(left, -0.5, f"Non-Polio EVC: {others}", va="center", ha="right", fontsize=24, color="black")
+
     # Save plot as .png
     plt.tight_layout()
-    plt.savefig(f"{args.output_dir}/sequences_per_year_continent.png", dpi=300)
-    
-    
-    
-    
-    
+    plt.savefig(f"{args.outdir}/stackedbar_serotypes_full_genomes.svg")
+
     
     
     

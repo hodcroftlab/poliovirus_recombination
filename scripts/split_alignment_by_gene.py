@@ -9,7 +9,7 @@ if __name__ == "__main__":
 
     argparser = argparse.ArgumentParser(description="Split a multiple sequence alignment (.fasta) into several alignments for each gene based on gene annotations in a .csv file.")
     argparser.add_argument("--alignment", help="Input aligned fasta file to be split into .")
-    argparser.add_argument("--gene_annotation", help="Gene annotation file in .csv format (expected columns: feature, start, end).")
+    argparser.add_argument("--gene_annotation", help="Gene annotation file in CSV or TSV format (expected columns: feature, start, end).")
     argparser.add_argument("--output_dir", help="Output directory for the split alignments.")
     
     args = argparser.parse_args()
@@ -18,7 +18,12 @@ if __name__ == "__main__":
     alignment = list(SeqIO.parse(args.alignment, "fasta"))
 
     # Read in gene annotations
-    gene_annotations = pd.read_csv(args.gene_annotation, sep="\t")
+    if args.gene_annotation.endswith(".csv"):
+        gene_annotations = pd.read_csv(args.gene_annotation)
+    elif args.gene_annotation.endswith(".tsv"):
+        gene_annotations = pd.read_csv(args.gene_annotation, sep="\t")
+    else:
+        print("Gene annotation file must be in CSV or TSV format.")
 
     # Split aligned fasta by gene
     # Iterate over genes/features
