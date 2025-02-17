@@ -1,4 +1,15 @@
 plots/
-data/
+data/*
+!data/sequences/all_evc_sequences.fasta
+!data/metadata/all_evc_metadata.csv
+!data/gene_annotation/annotation.gff
+!data/gene_annotation/annotation.tsv
+!data/gene_annotation/annotation_coding_region.gff
+!data/gene_annotation/annotation_coding_region.tsv
+!data/metadata/rivm_genotyping_results_fullgenome.csv
+!data/config/colors.tsv
+!data/config/vp1_clades.tsv
+!data/config/sites_of_interest.tsv
+!data/config/auspice_config.json
 .lintr
 .snakemake/
