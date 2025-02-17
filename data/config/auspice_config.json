@@ -1,0 +1,47 @@
+{
+  "title": "Enterovirus C",
+  "maintainers": [
+    {"name": "Keno Strotjohann"},
+    {"name": "Emma Hodcroft", "url": "http://emmahodcroft.com/"}
+  ],
+  "colorings": [
+    {
+      "title": "Serotype",
+      "type": "categorical",
+      "key": "serotype"
+    },
+    {
+      "title": "Collection Date",
+      "type": "temporal",
+      "key": "collection_date_decimal"
+    },
+    {
+      "title": "Release Date",
+      "type": "temporal",
+      "key": "release_date_decimal"
+    },
+    {
+      "title": "Country",
+      "type": "categorical",
+      "key": "Country"
+    },
+    {
+      "title": "Continent",
+      "type": "categorical",
+      "key": "continent"
+    },
+    {
+      "title": "Origin",
+      "type": "categorical",
+      "key": "origin"
+    }
+  ],
+  "panels": [
+     "tree",
+     "map",
+     "entropy"
+  ],
+  "display_defaults": {
+    "map_triplicate": true
+  }
+}

@@ -1,0 +1,10 @@
+feature	nuc_site
+OPV1 5' Attenuation	480
+OPV1 VP4 Attenuation	935
+OPV1 VP3 Attenuation	2438
+OPV1 VP1 Attenuation I	2795
+OPV1 VP1 Attenuation II	2879
+OPV2 5' Attenuation	481
+OPV2 VP1 Attenuation	2907
+OPV3 5' Attenuation	469
+OPV3 VP3 Attenuation	2037
