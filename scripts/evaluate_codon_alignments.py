@@ -12,6 +12,7 @@ if __name__ == "__main__":
     argparser.add_argument("--alignments", help="Input alignment files to be evaluated.", nargs="+")
     argparser.add_argument("--output", help="Output file (csv) containing the total number of stop codons and incomplete codons in the alignment.")
     argparser.add_argument("--plot", help="Output file (png) containing a bar plot of the number of stop codons and incomplete codons in each alignment.")
+    argparser.add_argument("--verbose", help="Print additional information to the console.", action="store_true")
 
     args = argparser.parse_args()
 
@@ -94,14 +95,14 @@ if __name__ == "__main__":
                 codon = sequence[i:i+3]
                 if codon in ["TGA", "TAA", "TAG", "tga", "taa", "tag"]:
                     stop_codons_seq += 1
-                    print(f"Stop codon {codon} found starting at nucleotide position {i} in sequence {record.id} in alignment {alignment_file}.")
+                    if args.verbose: print(f"Stop codon {codon} found starting at nucleotide position {i} in sequence {record.id} in alignment {alignment_file}.")
                 elif "-" in codon and codon.count("-") < 3:
                     # Check whether the incomplete codon is at the start or end of the sequence, i.e., only gaps precede or follow the codon, respectively
                     if sequence[:i].count("-") == i or sequence[i+3:].count("-") == len(sequence) - i - 3:
                         incomplete_codons_ends += 1
                     else:
                         incomplete_codons_internal += 1
-                        print(f"Internal incomplete codon {codon} found starting at nucleotide position {i} in sequence {record.id} in alignment {alignment_file}.")
+                        if args.verbose: print(f"Internal incomplete codon {codon} found starting at nucleotide position {i} in sequence {record.id} in alignment {alignment_file}.")
             # Add the counts for the sequence to the alignment counts
             stop_codons_total += stop_codons_seq
             incomplete_codons_ends_total += incomplete_codons_ends
