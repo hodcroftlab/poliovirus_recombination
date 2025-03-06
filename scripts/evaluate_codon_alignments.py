@@ -129,7 +129,7 @@ if __name__ == "__main__":
     
     
     ### Make plot with 2x3 bargraphs, one for each metric
-    results_df["alignment"] = results_df["alignment"].str.split("_").str[0]
+    #results_df["alignment"] = results_df["alignment"].str.split("_").str[0]
     results_df = results_df.drop(columns=["sequence_length"])
     
     # Add color column - have it designate colours to no matter the number of rows
@@ -146,7 +146,7 @@ if __name__ == "__main__":
         "incomplete_codons_internal": "Total Incomplete Codons Internal"
     })
 
-    # Set font to Arial and fontsize to 14
+    # Set font to DejaVu Sans and fontsize to 12
     plt.rcParams["font.sans-serif"] = "DejaVu Sans"
     plt.rcParams["font.size"] = 12
 
@@ -163,10 +163,20 @@ if __name__ == "__main__":
         return text[0].upper() + text[1:].lower()
     
     for i, metric in enumerate(["Nr. of Sequences", "Sum-of-Pairs Score", "Average Gaps per Sequence", "Total Stop Codons", "Total Incomplete Codons Terminal", "Total Incomplete Codons Internal"]):
-        ax[i].bar(results_df["alignment"], results_df[metric], color=results_df["color"])
+        # Generate x positions no matter the number of bars being plotted
+        x = np.arange(len(results_df["alignment"]))
+        bar_width = 0.4  # Adjust width to leave space between bars
+
+        # Plot bars with adjusted positions
+        ax[i].bar(x, results_df[metric], color=results_df["color"], width=bar_width)
+
+        # Ensure correct x-axis labels
+        ax[i].set_xticks(x)
+        ax[i].set_xticklabels(results_df["alignment"], rotation=45, ha="right")
+
         ax[i].set_title(metric, fontweight="bold")
         ax[i].set_ylabel(title_to_sentence_case(metric))
-        ax[i].tick_params(axis="x", rotation=45) # Rotate x labels
+        #ax[i].tick_params(axis="x", rotation=45) # Rotate x labels
         
         # Add letters A-F to the top-left corner of each subplot
         ax[i].text(0.03, 0.97, letters[i], transform=ax[i].transAxes, fontsize=16, fontweight="bold", va="top", ha="left")
