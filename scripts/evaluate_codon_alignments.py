@@ -132,8 +132,9 @@ if __name__ == "__main__":
     results_df["alignment"] = results_df["alignment"].str.split("_").str[0]
     results_df = results_df.drop(columns=["sequence_length"])
     
-    # Add color column 
-    results_df["color"] = ["#E69F00", "#56B4E9", "#009E73", "#D55E00", "#CC79A7"]
+    # Add color column - have it designate colours to no matter the number of rows
+    cmap = plt.get_cmap("tab10")
+    results_df["color"] = [cmap(i) for i in range(len(results_df))]
     
     # Rename columns
     results_df = results_df.rename(columns={
