@@ -147,7 +147,7 @@ if __name__ == "__main__":
     })
 
     # Set font to Arial and fontsize to 14
-    plt.rcParams["font.sans-serif"] = "Arial"
+    plt.rcParams["font.sans-serif"] = "DejaVu Sans"
     plt.rcParams["font.size"] = 12
 
     # Set up subplots
