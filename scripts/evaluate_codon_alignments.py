@@ -23,8 +23,9 @@ if __name__ == "__main__":
     # Also calculate average number of gaps and sum-of-pairs (SP) score
     # Output: dataframe with three columns: alignment file, number of sequences, length of the sequences, number of stop codons, number of incomplete codons
     
-    results_df = pd.DataFrame(columns=["alignment", "nr_sequences", "sequence_length", "sp_score", "avg_gaps", "stop_codons", "incomplete_codons_ends", "incomplete_codons_internal"])
-    
+    #Don't specify column names to prevent FutureWarning about concat-ing empty rows
+    results_df = pd.DataFrame()
+
     def calculate_sp_score(alignment, match_score=1, mismatch_score=0, gap_penalty=-1):
         # Calculate the sum-of-pairs (SP) score for the alignment
         # The SP score is the sum of the scores for all pairs of sequences in the alignment
