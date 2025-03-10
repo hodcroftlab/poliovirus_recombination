@@ -12,9 +12,26 @@ if __name__ == "__main__":
     argparser.add_argument("--alignments", help="Input alignment files to be evaluated.", nargs="+")
     argparser.add_argument("--output", help="Output file (csv) containing the total number of stop codons and incomplete codons in the alignment.")
     argparser.add_argument("--plot", help="Output file (png) containing a bar plot of the number of stop codons and incomplete codons in each alignment.")
+    argparser.add_argument("--cds-coords", help="Start and end of the CDS in the reference sequence (1-based, separated by a comma). Only coding region will be compared.")
     argparser.add_argument("--verbose", help="Print additional information to the console.", action="store_true")
 
     args = argparser.parse_args()
+
+    # Check if the CDS coordinates are provided and valid
+    # Warn the user that only the coding region will be compared
+    if args.cds_coords:
+        cds_coords = args.cds_coords.split(",")
+        if len(cds_coords) != 2:
+            print("Invalid CDS coordinates. Please provide the start and end of the CDS in the reference sequence (1-based, separated by a comma).")
+            sys.exit(1)
+        try:
+            cds_coords = list(map(int, cds_coords))
+        except ValueError:
+            print("Invalid CDS coordinates. Please provide the start and end of the CDS in the reference sequence (1-based, separated by a comma).")
+            sys.exit(1)
+        print("Only the coding region (as defined by the coordinates supplied) will be compared!\n")
+    else:
+        cds_coords = None
 
     alignment_files = args.alignments
     output_file = args.output
@@ -66,7 +83,11 @@ if __name__ == "__main__":
         alignment = list(SeqIO.parse(alignment_file, "fasta"))
         
         nr_sequences = len(alignment)
-        sequence_length = len(alignment[0].seq)
+        # If using CDS coordinates, calculate the length of the coding region
+        if cds_coords:
+            sequence_length = len(alignment[0][cds_coords[0]-1:cds_coords[1]].seq)
+        else:
+            sequence_length = len(alignment[0].seq)
         stop_codons_total = 0
         incomplete_codons_ends_total = 0
         incomplete_codons_internal_total = 0
@@ -77,6 +98,10 @@ if __name__ == "__main__":
         sp_score = calculate_sp_score(alignment)
           
         for record in alignment:
+            # if cds_coords is provided, trim the record to this first before starting to compare
+            if cds_coords:
+                record = record[cds_coords[0]-1:cds_coords[1]] #subtract 1 from start to make it 0-based, not needed at end as slice is exclusive
+
             # Check if all sequences within the alignment have the same length, otherwise the alignment is not valid
             if len(record.seq) != sequence_length:
                 print(f"Sequence {record.id} in alignment {alignment_file} has a different length than the first sequence in the alignment (counting gaps). Make sure the sequences are aligned.")
