@@ -12,8 +12,26 @@ if __name__ == "__main__":
     argparser.add_argument("--alignments", help="Input alignment files to be evaluated.", nargs="+")
     argparser.add_argument("--output", help="Output file (csv) containing the total number of stop codons and incomplete codons in the alignment.")
     argparser.add_argument("--plot", help="Output file (png) containing a bar plot of the number of stop codons and incomplete codons in each alignment.")
+    argparser.add_argument("--cds-coords", help="Start and end of the CDS in the reference sequence (1-based, separated by a comma). Only coding region will be compared.")
+    argparser.add_argument("--verbose", help="Print additional information to the console.", action="store_true")
 
     args = argparser.parse_args()
+
+    # Check if the CDS coordinates are provided and valid
+    # Warn the user that only the coding region will be compared
+    if args.cds_coords:
+        cds_coords = args.cds_coords.split(",")
+        if len(cds_coords) != 2:
+            print("Invalid CDS coordinates. Please provide the start and end of the CDS in the reference sequence (1-based, separated by a comma).")
+            sys.exit(1)
+        try:
+            cds_coords = list(map(int, cds_coords))
+        except ValueError:
+            print("Invalid CDS coordinates. Please provide the start and end of the CDS in the reference sequence (1-based, separated by a comma).")
+            sys.exit(1)
+        print("Only the coding region (as defined by the coordinates supplied) will be compared!\n")
+    else:
+        cds_coords = None
 
     alignment_files = args.alignments
     output_file = args.output
@@ -22,8 +40,9 @@ if __name__ == "__main__":
     # Also calculate average number of gaps and sum-of-pairs (SP) score
     # Output: dataframe with three columns: alignment file, number of sequences, length of the sequences, number of stop codons, number of incomplete codons
     
-    results_df = pd.DataFrame(columns=["alignment", "nr_sequences", "sequence_length", "sp_score", "avg_gaps", "stop_codons", "incomplete_codons_ends", "incomplete_codons_internal"])
-    
+    #Don't specify column names to prevent FutureWarning about concat-ing empty rows
+    results_df = pd.DataFrame()
+
     def calculate_sp_score(alignment, match_score=1, mismatch_score=0, gap_penalty=-1):
         # Calculate the sum-of-pairs (SP) score for the alignment
         # The SP score is the sum of the scores for all pairs of sequences in the alignment
@@ -64,7 +83,11 @@ if __name__ == "__main__":
         alignment = list(SeqIO.parse(alignment_file, "fasta"))
         
         nr_sequences = len(alignment)
-        sequence_length = len(alignment[0].seq)
+        # If using CDS coordinates, calculate the length of the coding region
+        if cds_coords:
+            sequence_length = len(alignment[0][cds_coords[0]-1:cds_coords[1]].seq)
+        else:
+            sequence_length = len(alignment[0].seq)
         stop_codons_total = 0
         incomplete_codons_ends_total = 0
         incomplete_codons_internal_total = 0
@@ -75,6 +98,10 @@ if __name__ == "__main__":
         sp_score = calculate_sp_score(alignment)
           
         for record in alignment:
+            # if cds_coords is provided, trim the record to this first before starting to compare
+            if cds_coords:
+                record = record[cds_coords[0]-1:cds_coords[1]] #subtract 1 from start to make it 0-based, not needed at end as slice is exclusive
+
             # Check if all sequences within the alignment have the same length, otherwise the alignment is not valid
             if len(record.seq) != sequence_length:
                 print(f"Sequence {record.id} in alignment {alignment_file} has a different length than the first sequence in the alignment (counting gaps). Make sure the sequences are aligned.")
@@ -94,14 +121,14 @@ if __name__ == "__main__":
                 codon = sequence[i:i+3]
                 if codon in ["TGA", "TAA", "TAG", "tga", "taa", "tag"]:
                     stop_codons_seq += 1
-                    print(f"Stop codon {codon} found starting at nucleotide position {i} in sequence {record.id} in alignment {alignment_file}.")
+                    if args.verbose: print(f"Stop codon {codon} found starting at nucleotide position {i} in sequence {record.id} in alignment {alignment_file}.")
                 elif "-" in codon and codon.count("-") < 3:
                     # Check whether the incomplete codon is at the start or end of the sequence, i.e., only gaps precede or follow the codon, respectively
                     if sequence[:i].count("-") == i or sequence[i+3:].count("-") == len(sequence) - i - 3:
                         incomplete_codons_ends += 1
                     else:
                         incomplete_codons_internal += 1
-                        print(f"Internal incomplete codon {codon} found starting at nucleotide position {i} in sequence {record.id} in alignment {alignment_file}.")
+                        if args.verbose: print(f"Internal incomplete codon {codon} found starting at nucleotide position {i} in sequence {record.id} in alignment {alignment_file}.")
             # Add the counts for the sequence to the alignment counts
             stop_codons_total += stop_codons_seq
             incomplete_codons_ends_total += incomplete_codons_ends
@@ -127,11 +154,12 @@ if __name__ == "__main__":
     
     
     ### Make plot with 2x3 bargraphs, one for each metric
-    results_df["alignment"] = results_df["alignment"].str.split("_").str[0]
+    #results_df["alignment"] = results_df["alignment"].str.split("_").str[0]
     results_df = results_df.drop(columns=["sequence_length"])
     
-    # Add color column 
-    results_df["color"] = ["#E69F00", "#56B4E9", "#009E73", "#D55E00", "#CC79A7"]
+    # Add color column - have it designate colours to no matter the number of rows
+    cmap = plt.get_cmap("tab10")
+    results_df["color"] = [cmap(i) for i in range(len(results_df))]
     
     # Rename columns
     results_df = results_df.rename(columns={
@@ -143,8 +171,8 @@ if __name__ == "__main__":
         "incomplete_codons_internal": "Total Incomplete Codons Internal"
     })
 
-    # Set font to Arial and fontsize to 14
-    plt.rcParams["font.sans-serif"] = "Arial"
+    # Set font to DejaVu Sans and fontsize to 12
+    plt.rcParams["font.sans-serif"] = "DejaVu Sans"
     plt.rcParams["font.size"] = 12
 
     # Set up subplots
@@ -160,10 +188,24 @@ if __name__ == "__main__":
         return text[0].upper() + text[1:].lower()
     
     for i, metric in enumerate(["Nr. of Sequences", "Sum-of-Pairs Score", "Average Gaps per Sequence", "Total Stop Codons", "Total Incomplete Codons Terminal", "Total Incomplete Codons Internal"]):
-        ax[i].bar(results_df["alignment"], results_df[metric], color=results_df["color"])
+        # Generate x positions no matter the number of bars being plotted
+        x = np.arange(len(results_df["alignment"]))
+        bar_width = 0.4  # Adjust width to leave space between bars
+
+        #Use a scatter plot for Sum-of-Pairs Score, use a bar plot for the other variables
+        if metric == "Sum-of-Pairs Score":
+            ax[i].scatter(x, results_df[metric], color=results_df["color"], s=100)  # Scatter plot with size 100
+        else:
+            ax[i].bar(x, results_df[metric], color=results_df["color"], width=bar_width) # Bar plot for the other variables
+
+
+        # Ensure correct x-axis labels
+        ax[i].set_xticks(x)
+        ax[i].set_xticklabels(results_df["alignment"], rotation=45, ha="right")
+
         ax[i].set_title(metric, fontweight="bold")
         ax[i].set_ylabel(title_to_sentence_case(metric))
-        ax[i].tick_params(axis="x", rotation=45) # Rotate x labels
+        #ax[i].tick_params(axis="x", rotation=45) # Rotate x labels
         
         # Add letters A-F to the top-left corner of each subplot
         ax[i].text(0.03, 0.97, letters[i], transform=ax[i].transAxes, fontsize=16, fontweight="bold", va="top", ha="left")
@@ -181,7 +223,7 @@ if __name__ == "__main__":
                 
             # Extend the y-axis for values on top of bars and subplot labels
             if metric == "Sum-of-Pairs Score":
-                ax[i].set_ylim(0, results_df[metric].max() * 1.4)  # Extend more for this metric
+                pass # let matplotlib set this, as can sometimes be larger & sometimes smaller difference
             else:
                 ax[i].set_ylim(0, results_df[metric].max() * 1.3)
         
