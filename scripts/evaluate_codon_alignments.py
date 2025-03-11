@@ -192,8 +192,12 @@ if __name__ == "__main__":
         x = np.arange(len(results_df["alignment"]))
         bar_width = 0.4  # Adjust width to leave space between bars
 
-        # Plot bars with adjusted positions
-        ax[i].bar(x, results_df[metric], color=results_df["color"], width=bar_width)
+        #Use a scatter plot for Sum-of-Pairs Score, use a bar plot for the other variables
+        if metric == "Sum-of-Pairs Score":
+            ax[i].scatter(x, results_df[metric], color=results_df["color"], s=100)  # Scatter plot with size 100
+        else:
+            ax[i].bar(x, results_df[metric], color=results_df["color"], width=bar_width) # Bar plot for the other variables
+
 
         # Ensure correct x-axis labels
         ax[i].set_xticks(x)
@@ -219,7 +223,7 @@ if __name__ == "__main__":
                 
             # Extend the y-axis for values on top of bars and subplot labels
             if metric == "Sum-of-Pairs Score":
-                ax[i].set_ylim(0, results_df[metric].max() * 1.4)  # Extend more for this metric
+                pass # let matplotlib set this, as can sometimes be larger & sometimes smaller difference
             else:
                 ax[i].set_ylim(0, results_df[metric].max() * 1.3)
         
